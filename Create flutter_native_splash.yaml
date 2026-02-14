@@ -1,13 +1,13 @@
 flutter_native_splash:
-  # 👇 Main splash logo
-  image: assets/images/app_logo(white).png
-  
-  # 👇 Splash background color (matches your theme)
-  color: "#0D0D0D"
-  
-  # Android 12+ specific settings
+  # 👇 Set the background color to White
+  color: "#FFFFFF" 
+
+  # 👇 Use the file that has the TRANSPARENT background
+  image: assets/images/logo_black.png
+
+  # Android 12+ settings
   android_12:
-    image: assets/images/app_logo(white).png
-    color: "#0D0D0D"
+    image: assets/images/logo_black.png
+    color: "#FFFFFF"
 
   fullscreen: true

@@ -1,13 +1,16 @@
 flutter_launcher_icons:
   android: "launcher_icon"
   ios: true
-  image_path: "assets/images/app_logo(white).png"
+  
+  # 👇 We use the file that has space around the logo
+  image_path: "assets/images/logo_white.png" 
   min_sdk_android: 21
   
-  # 👇 Premium Android Adaptive Icon (White logo on Black background)
+  # 👇 Background color stays black
   adaptive_icon_background: "#0D0D0D"
-  adaptive_icon_foreground: "assets/images/app_logo(white).png"
   
-  # 👇 iOS 18+ Support
+  # 👇 Foreground uses the smaller, centered logo
+  adaptive_icon_foreground: "assets/images/logo_white.png"
+  
   desaturate_tinted_to_grayscale_ios: true
   remove_alpha_ios: true
