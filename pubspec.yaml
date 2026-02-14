@@ -1,5 +1,5 @@
 name: ridex
-description: "A new Flutter project."
+description: "A new Flutter project for Coimbatore Student Bus Pass."
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -9,16 +9,25 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  # Icons
   cupertino_icons: ^1.0.8
+
+  # --- MAP & LOCATION TOOLS ---
+  flutter_map: ^6.1.0        # The Free Map Engine
+  latlong2: ^0.9.0           # For Coordinates (Latitude/Longitude)
+  geolocator: ^10.1.0        # For Getting User Location
+
+  # --- BACKEND ---
+  http: ^1.3.0
+
+  # --- UI ---
+  google_fonts: ^6.2.1
+  flutter_animate: ^4.5.2
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^6.0.0
-  # 👇 Launcher Icon Package (0.14.4)
-  flutter_launcher_icons: ^0.14.4
-  # 👇 Native Splash Package
-  flutter_native_splash: ^2.4.4
+  flutter_lints: ^3.0.0
 
 flutter:
   uses-material-design: true
