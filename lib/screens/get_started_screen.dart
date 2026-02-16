@@ -22,28 +22,26 @@ class _GetStartedScreenState extends State<GetStartedScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   
-  // FocusNode to detect when user "taps" the password field
   final FocusNode _passwordFocusNode = FocusNode();
 
-  String _selectedEmailDomain = "@gmail.com";
   bool _isPasswordVisible = false;
   String? _passwordError; 
 
-  // --- Password Strength Logic (Visuals) ---
+  // --- Password Strength Logic ---
   int get _strengthScore {
     String p = _passwordController.text;
     if (p.isEmpty) return 0;
     int count = 0;
-    if (p.contains(RegExp(r'[a-zA-Z]'))) count++; // Letters
-    if (p.contains(RegExp(r'[0-9]'))) count++;    // Numbers
-    if (p.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>]'))) count++; // Symbols
+    if (p.contains(RegExp(r'[a-zA-Z]'))) count++; 
+    if (p.contains(RegExp(r'[0-9]'))) count++;    
+    if (p.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>]'))) count++; 
     return count; 
   }
 
   Color get _strengthColor {
-    if (_strengthScore == 1) return Colors.redAccent;    // Weak
-    if (_strengthScore == 2) return Colors.orangeAccent; // Medium
-    if (_strengthScore == 3) return Colors.greenAccent;  // Strong
+    if (_strengthScore == 1) return Colors.redAccent;
+    if (_strengthScore == 2) return Colors.orangeAccent;
+    if (_strengthScore == 3) return Colors.greenAccent;
     return Colors.grey.shade200; 
   }
 
@@ -54,16 +52,18 @@ class _GetStartedScreenState extends State<GetStartedScreen> {
     return "Enter Password";
   }
 
-  // --- Button Unlock Logic (6-12 Chars) ---
+  // --- Validation Logic ---
   bool get _isFormValid {
     final passLen = _passwordController.text.length;
+    // Simple Email Regex check
+    final emailRegex = RegExp(r"^[a-zA-Z0-9.]+@[a-zA-Z0-9]+\.[a-zA-Z]+");
+    
     return _nameController.text.trim().isNotEmpty &&
-           _emailController.text.trim().isNotEmpty &&
+           emailRegex.hasMatch(_emailController.text.trim()) &&
            passLen >= 6 && 
            passLen <= 12; 
   }
 
-  // --- Live Validation (The "Mistake" Checker) ---
   void _validatePassword(String value) {
     setState(() {
       if (value.isNotEmpty) {
@@ -72,10 +72,10 @@ class _GetStartedScreenState extends State<GetStartedScreen> {
         } else if (value.length > 12) {
           _passwordError = "Password is too long (Max 12)";
         } else {
-          _passwordError = null; // No mistake
+          _passwordError = null; 
         }
       } else {
-        _passwordError = null; // Clear error if empty
+        _passwordError = null; 
       }
     });
   }
@@ -84,7 +84,7 @@ class _GetStartedScreenState extends State<GetStartedScreen> {
   void initState() {
     super.initState();
     _passwordFocusNode.addListener(() {
-      setState(() {}); // Rebuild to show bars on focus
+      setState(() {}); 
     });
   }
 
@@ -133,13 +133,13 @@ class _GetStartedScreenState extends State<GetStartedScreen> {
                     ),
                     const SizedBox(height: 25),
 
-                    // --- 2. Mail ID Input (Removed '@' Restriction) ---
+                    // --- 2. Mail ID Input (Clean, No Dropdown) ---
                     _buildInputContainer(
                       child: TextField(
                         controller: _emailController,
+                        keyboardType: TextInputType.emailAddress,
                         onChanged: (_) => setState(() {}),
-                        // Removed the FilteringTextInputFormatter.deny('@') line
-                        decoration: _inputDecoration("Mail ID", Icons.email_outlined).copyWith(suffixIcon: _buildDomainPicker()),
+                        decoration: _inputDecoration("Mail ID", Icons.email_outlined),
                       ),
                     ),
                     const SizedBox(height: 25),
@@ -157,7 +157,6 @@ class _GetStartedScreenState extends State<GetStartedScreen> {
                               _validatePassword(value);
                             },
                             obscureText: !_isPasswordVisible,
-                            // Hard limit set to 12 as per previous requests
                             inputFormatters: [LengthLimitingTextInputFormatter(12)], 
                             decoration: _inputDecoration("Password", Icons.lock_outline).copyWith(
                               suffixIcon: GestureDetector(
@@ -169,7 +168,6 @@ class _GetStartedScreenState extends State<GetStartedScreen> {
                           ),
                         ),
                         
-                        // Red Warning Text
                         if (_passwordError != null)
                           Padding(
                             padding: const EdgeInsets.only(top: 8.0, left: 10.0),
@@ -187,7 +185,7 @@ class _GetStartedScreenState extends State<GetStartedScreen> {
                       ],
                     ),
                     
-                    // Strength Bars (Show on Tap OR Type)
+                    // Strength Bars
                     AnimatedOpacity(
                       duration: const Duration(milliseconds: 300),
                       opacity: (_passwordFocusNode.hasFocus || _passwordController.text.isNotEmpty) ? 1.0 : 0.0,
@@ -235,7 +233,13 @@ class _GetStartedScreenState extends State<GetStartedScreen> {
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
                         ),
                         onPressed: _isFormValid ? () {
-                          Navigator.push(context, MaterialPageRoute(builder: (context) => const MobileNumberScreen()));
+                          // 👉 PASSING EMAIL TO NEXT SCREEN
+                          Navigator.push(
+                            context, 
+                            MaterialPageRoute(
+                              builder: (context) => MobileNumberScreen(email: _emailController.text)
+                            )
+                          );
                         } : null,
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -290,28 +294,6 @@ class _GetStartedScreenState extends State<GetStartedScreen> {
     );
   }
 
-  Widget _buildDomainPicker() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-      decoration: BoxDecoration(
-        color: Colors.blue.withOpacity(0.08), 
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.blue.withOpacity(0.2)),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: _selectedEmailDomain,
-          icon: const Icon(Icons.keyboard_arrow_down, size: 16, color: Colors.blue),
-          borderRadius: BorderRadius.circular(20),
-          style: const TextStyle(fontFamily: 'SF Pro Display', color: Colors.blue, fontWeight: FontWeight.bold, fontSize: 12),
-          items: ["@gmail.com", "@icloud.com", "@outlook.com"].map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
-          onChanged: (v) => setState(() => _selectedEmailDomain = v!),
-        ),
-      ),
-    );
-  }
-
   Widget _buildInputContainer({required Widget child, Color borderColor = Colors.transparent}) {
     return Container(
       decoration: BoxDecoration(
@@ -348,7 +330,6 @@ class _GetStartedScreenState extends State<GetStartedScreen> {
   }
 }
 
-// --- CORRECT BACKGROUND (Image + Overlay + Fade) ---
 class ScreenBackground extends StatelessWidget {
   final Widget child;
   const ScreenBackground({super.key, required this.child});
@@ -357,31 +338,9 @@ class ScreenBackground extends StatelessWidget {
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        // 1. Map Image
-        Positioned.fill(
-          child: Image.asset(
-            "assets/images/map_bg.jpg", 
-            fit: BoxFit.cover
-          ),
-        ),
-        // 2. White Overlay
-        Positioned.fill(
-          child: Container(color: Colors.white.withOpacity(0.95)),
-        ),
-        // 3. Fade Gradient
-        Positioned.fill(
-          child: Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Colors.white10, Colors.white],
-                stops: [0.0, 1.0], 
-              ),
-            ),
-          ),
-        ),
-        // 4. Content
+        Positioned.fill(child: Image.asset("assets/images/map_bg.jpg", fit: BoxFit.cover)),
+        Positioned.fill(child: Container(color: Colors.white.withOpacity(0.95))),
+        Positioned.fill(child: Container(decoration: const BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.white10, Colors.white], stops: [0.0, 1.0])))),
         Positioned.fill(child: child),
       ],
     );
