@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
-import 'dart:ui';
-import 'route_selection_page.dart'; // 1. IMPORT THE NEXT PAGE
+import 'dart:io'; // Required for File handling
+import 'dart:ui'; // Required for Blur effects
+import 'package:image_picker/image_picker.dart'; // Required for Gallery Access
+import 'route_selection_page.dart'; // 👉 Imports the next page
 
 class BonafideUploadPage extends StatefulWidget {
   const BonafideUploadPage({super.key});
@@ -13,31 +15,52 @@ class _BonafideUploadPageState extends State<BonafideUploadPage> {
   // --- Apple Design Tokens ---
   static const Color black = Color(0xFF0D0D0D);
   static const Color appleBlue = Color(0xFF007AFF);
-  static const Color appleRed = Color(0xFFFF3B30); 
+  static const Color appleRed = Color(0xFFFF3B30);
   static const Color greyText = Color(0xFF8E8E93);
   static const Color appleGrey = Color(0xFFF2F2F7);
 
   // --- State Variables ---
   bool _isUploading = false;
   bool _hasFile = false;
-  
-  // Mock size logic for Bonafide (1 MB Cap)
-  int _mockFileSizeKB = 320; 
-  bool get _isSizeTooLarge => _mockFileSizeKB > 1000;
+  File? _selectedFile; // Holds the real file
+  int _fileSizeKB = 0; // Holds the calculated size
+
+  // --- Size Logic (Limit: 1 MB = 1000 KB) ---
+  bool get _isSizeTooLarge => _fileSizeKB > 1000;
 
   Future<void> _handleFileSelection() async {
-    setState(() => _isUploading = true);
-    
-    // Simulate picking a Bonafide Scan/PDF
-    await Future.delayed(const Duration(seconds: 2));
+    final ImagePicker picker = ImagePicker();
 
-    if (mounted) {
-      setState(() {
-        _isUploading = false;
-        _hasFile = true;
-        // Test: Change to 1500 to see Red Error
-        _mockFileSizeKB = 320; 
-      });
+    try {
+      setState(() => _isUploading = true);
+
+      // 1. Pick Image (Simulating Document Scan)
+      final XFile? pickedFile = await picker.pickImage(
+        source: ImageSource.gallery,
+      );
+
+      if (pickedFile != null) {
+        File file = File(pickedFile.path);
+
+        // 2. Get Size
+        int sizeInBytes = await file.length();
+        int sizeInKB = (sizeInBytes / 1024).round();
+
+        // 3. Update State
+        if (mounted) {
+          setState(() {
+            _selectedFile = file;
+            _fileSizeKB = sizeInKB;
+            _hasFile = true;
+            _isUploading = false;
+          });
+        }
+      } else {
+        if (mounted) setState(() => _isUploading = false);
+      }
+    } catch (e) {
+      debugPrint("Error: $e");
+      if (mounted) setState(() => _isUploading = false);
     }
   }
 
@@ -77,24 +100,24 @@ class _BonafideUploadPageState extends State<BonafideUploadPage> {
                     height: 1.3,
                   ),
                 ),
-                
+
                 const Spacer(flex: 2),
 
                 // --- Preview Frame ---
                 Center(
                   child: GestureDetector(
-                    onTap: _hasFile ? null : _handleFileSelection,
+                    onTap: _handleFileSelection,
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 500),
                       curve: Curves.easeInOutBack,
-                      width: double.infinity, 
-                      height: 260,
+                      width: double.infinity,
+                      height: 260, // Taller frame for Bonafide certificates
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(30),
                         border: Border.all(
-                          color: _hasFile 
-                              ? (_isSizeTooLarge ? appleRed : appleBlue) 
+                          color: _hasFile
+                              ? (_isSizeTooLarge ? appleRed : appleBlue)
                               : Colors.transparent,
                           width: 3,
                         ),
@@ -103,7 +126,7 @@ class _BonafideUploadPageState extends State<BonafideUploadPage> {
                             color: Colors.black.withOpacity(0.06),
                             blurRadius: 40,
                             offset: const Offset(0, 20),
-                          )
+                          ),
                         ],
                       ),
                       child: ClipRRect(
@@ -116,26 +139,30 @@ class _BonafideUploadPageState extends State<BonafideUploadPage> {
 
                 const SizedBox(height: 15),
 
-                // --- DYNAMIC WARNING AREA ---
+                // --- Warning Text ---
                 Center(
                   child: Column(
                     children: [
                       Text(
-                        _isSizeTooLarge 
-                            ? "File too large: ${_mockFileSizeKB} KB" 
-                            : "Standard Format: PDF / Scan",
+                        _hasFile
+                            ? (_isSizeTooLarge
+                                  ? "File too large: $_fileSizeKB KB"
+                                  : "Size OK: $_fileSizeKB KB")
+                            : "Standard Format: Image / Scan",
                         style: TextStyle(
                           fontFamily: 'SF Pro Display',
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
-                          color: _isSizeTooLarge ? appleRed : greyText,
+                          color: (_hasFile && _isSizeTooLarge)
+                              ? appleRed
+                              : greyText,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        _isSizeTooLarge 
-                            ? "Please compress below 1000 KB" 
-                            : "Max allowed size: 1 MB",
+                        _isSizeTooLarge
+                            ? "Please compress image below 1 MB"
+                            : "Maximum allowed size: 1 MB",
                         style: const TextStyle(
                           fontFamily: 'SF Pro Display',
                           fontSize: 12,
@@ -148,27 +175,30 @@ class _BonafideUploadPageState extends State<BonafideUploadPage> {
 
                 const Spacer(flex: 3),
 
-                // --- Action Area ---
+                // --- Action Buttons ---
                 Column(
                   children: [
                     _buildAppleButton(
                       text: _hasFile ? "Continue to Route" : "Upload Bonafide",
-                      // 2. FIXED NAVIGATION LOGIC HERE
-                      onTap: (_isUploading || (_hasFile && _isSizeTooLarge)) 
-                          ? null 
-                          : (_hasFile ? () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (context) => const RouteSelectionPage()),
-                              );
-                            } : _handleFileSelection),
+                      // Disable if uploading OR file too large
+                      onTap: (_isUploading || (_hasFile && _isSizeTooLarge))
+                          ? null
+                          : (_hasFile
+                                ? () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          const RouteSelectionPage(),
+                                    ),
+                                  )
+                                : _handleFileSelection),
                       isPrimary: true,
                     ),
                     if (_hasFile) ...[
                       const SizedBox(height: 12),
                       _buildAppleButton(
                         text: "Change Document",
-                        onTap: () => setState(() => _hasFile = false),
+                        onTap: _handleFileSelection,
                         isPrimary: false,
                       ),
                     ],
@@ -185,64 +215,104 @@ class _BonafideUploadPageState extends State<BonafideUploadPage> {
 
   Widget _buildPreviewContent() {
     if (_isUploading) {
-      return const Center(child: CircularProgressIndicator(color: appleBlue, strokeWidth: 3));
+      return const Center(
+        child: CircularProgressIndicator(color: appleBlue, strokeWidth: 3),
+      );
     }
-    if (_hasFile) {
+
+    if (_hasFile && _selectedFile != null) {
       return Stack(
         fit: StackFit.expand,
         children: [
-          Container(color: appleGrey),
+          // 1. Image Preview
+          Image.file(_selectedFile!, fit: BoxFit.cover),
+
+          // 2. Error Overlay
+          if (_isSizeTooLarge) Container(color: Colors.white.withOpacity(0.8)),
+
+          // 3. Status Icon
           Center(
-            child: Icon(
-              _isSizeTooLarge ? Icons.warning_rounded : Icons.description_rounded, 
-              size: 90, 
-              color: _isSizeTooLarge ? appleRed.withOpacity(0.5) : appleBlue.withOpacity(0.7)
-            )
+            child: _isSizeTooLarge
+                ? Icon(Icons.warning_amber_rounded, size: 60, color: appleRed)
+                : null,
           ),
+
+          // 4. Corner Badge
           Positioned(
-            bottom: 20,
-            right: 20,
+            bottom: 15,
+            right: 15,
             child: Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: _isSizeTooLarge ? appleRed : appleBlue, 
-                shape: BoxShape.circle
+                color: _isSizeTooLarge ? appleRed : appleBlue,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black26,
+                    blurRadius: 8,
+                    offset: Offset(0, 4),
+                  ),
+                ],
               ),
               child: Icon(
-                _isSizeTooLarge ? Icons.close_rounded : Icons.check_rounded, 
-                color: Colors.white, 
-                size: 20
+                _isSizeTooLarge ? Icons.close_rounded : Icons.check_rounded,
+                color: Colors.white,
+                size: 20,
               ),
             ),
           ),
         ],
       );
     }
+
+    // Default Empty State
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Icon(Icons.note_add_outlined, size: 54, color: appleBlue.withOpacity(0.8)),
+        Icon(
+          Icons.note_add_outlined,
+          size: 54,
+          color: appleBlue.withOpacity(0.8),
+        ),
         const SizedBox(height: 12),
-        const Text("Select Certificate", style: TextStyle(fontFamily: 'SF Pro Display', color: appleBlue, fontWeight: FontWeight.w600, fontSize: 18)),
+        const Text(
+          "Select Certificate",
+          style: TextStyle(
+            fontFamily: 'SF Pro Display',
+            color: appleBlue,
+            fontWeight: FontWeight.w600,
+            fontSize: 18,
+          ),
+        ),
       ],
     );
   }
 
-  Widget _buildAppleButton({required String text, required VoidCallback? onTap, required bool isPrimary}) {
+  Widget _buildAppleButton({
+    required String text,
+    required VoidCallback? onTap,
+    required bool isPrimary,
+  }) {
     return SizedBox(
       width: double.infinity,
       height: 60,
       child: TextButton(
         style: TextButton.styleFrom(
-          backgroundColor: (onTap == null) ? Colors.grey.shade200 : (isPrimary ? black : appleGrey),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          backgroundColor: (onTap == null)
+              ? Colors.grey.shade300
+              : (isPrimary ? black : appleGrey),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
         ),
         onPressed: onTap,
         child: Text(
           text,
           style: TextStyle(
             fontFamily: 'SF Pro Display',
-            color: (onTap == null) ? Colors.grey : (isPrimary ? Colors.white : black),
+            color: (onTap == null)
+                ? Colors.grey
+                : (isPrimary ? Colors.white : black),
             fontSize: 18,
             fontWeight: FontWeight.w600,
           ),
@@ -251,34 +321,41 @@ class _BonafideUploadPageState extends State<BonafideUploadPage> {
     );
   }
 
-  // 👉 EXACT APPLE PILL BACK BUTTON (UPDATED)
   PreferredSizeWidget _buildAppleAppBar(BuildContext context) {
     return AppBar(
       backgroundColor: Colors.transparent,
       elevation: 0,
-      leadingWidth: 115,
+      leadingWidth: 110,
       leading: Padding(
-        padding: const EdgeInsets.only(left: 24.0, top: 10.0, bottom: 10.0),
-        child: GestureDetector(
-          onTap: () {
-            if (Navigator.canPop(context)) {
-              Navigator.pop(context);
-            }
-          },
-          child: Container(
-            decoration: BoxDecoration(
-              color: const Color(0xFFEFEFEF),
-              borderRadius: BorderRadius.circular(30),
-            ),
-            alignment: Alignment.center,
-            child: const Text(
-              "< back",
-              style: TextStyle(
-                fontFamily: 'SF Pro Display',
-                color: Color(0xFF8A8A8E),
-                fontSize: 17,
-                fontWeight: FontWeight.w500,
-                letterSpacing: -0.5,
+        padding: const EdgeInsets.only(left: 20, top: 12, bottom: 12),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: GestureDetector(
+              onTap: () => Navigator.pop(context),
+              child: Container(
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.7),
+                  border: Border.all(color: Colors.white.withOpacity(0.3)),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.arrow_back_ios_new, size: 14, color: black),
+                    SizedBox(width: 6),
+                    Text(
+                      "Back",
+                      style: TextStyle(
+                        color: black,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -293,11 +370,32 @@ class ScreenBackground extends StatelessWidget {
   const ScreenBackground({super.key, required this.child});
   @override
   Widget build(BuildContext context) {
-    return Stack(children: [
-      Positioned.fill(child: Image.asset("assets/images/map_bg.jpg", fit: BoxFit.cover)),
-      Positioned.fill(child: Container(color: Colors.white.withOpacity(0.92))),
-      Positioned.fill(child: Container(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.white.withOpacity(0.0), Colors.white.withOpacity(0.8), Colors.white], stops: const [0.0, 0.6, 1.0])))),
-      Positioned.fill(child: child),
-    ]);
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: Image.asset("assets/images/map_bg.jpg", fit: BoxFit.cover),
+        ),
+        Positioned.fill(
+          child: Container(color: Colors.white.withOpacity(0.92)),
+        ),
+        Positioned.fill(
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.white.withOpacity(0.0),
+                  Colors.white.withOpacity(0.8),
+                  Colors.white,
+                ],
+                stops: const [0.0, 0.6, 1.0],
+              ),
+            ),
+          ),
+        ),
+        Positioned.fill(child: child),
+      ],
+    );
   }
 }

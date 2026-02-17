@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
+import 'dart:io'; // Needed for File access
+import 'package:image_picker/image_picker.dart'; // REQUIRED: flutter pub add image_picker
 import 'aadhaar_page.dart';
 
 class PhotoUploadPage extends StatefulWidget {
@@ -10,30 +12,56 @@ class PhotoUploadPage extends StatefulWidget {
 }
 
 class _PhotoUploadPageState extends State<PhotoUploadPage> {
+  // --- Apple Design Tokens ---
   static const Color black = Color(0xFF0D0D0D);
   static const Color appleBlue = Color(0xFF007AFF);
   static const Color appleRed = Color(0xFFFF3B30); // Apple Error Red
   static const Color greyText = Color(0xFF8E8E93);
   static const Color appleGrey = Color(0xFFF2F2F7);
 
+  // --- State ---
   bool _isUploading = false;
   bool _hasPhoto = false;
-  
-  // Simulation variables for size logic
-  int _mockFileSizeKB = 45; // Default normal size
-  bool get _isSizeTooLarge => _mockFileSizeKB > 100;
+  File? _selectedImage; // Holds the real file
+  int _currentFileSizeKB = 0; // Holds real size
 
+  // --- Size Logic ---
+  // The specific size limit you gave: 100 KB
+  bool get _isSizeTooLarge => _currentFileSizeKB > 100;
+
+  // --- File Selection Logic ---
   Future<void> _handleFileSelection() async {
-    setState(() => _isUploading = true);
+    final ImagePicker picker = ImagePicker();
     
-    await Future.delayed(const Duration(seconds: 2));
+    try {
+      setState(() => _isUploading = true);
+      
+      // 1. Pick the image from gallery
+      final XFile? pickedFile = await picker.pickImage(source: ImageSource.gallery);
 
-    if (mounted) {
-      setState(() {
-        _isUploading = false;
-        _hasPhoto = true;
-        _mockFileSizeKB = 45; 
-      });
+      if (pickedFile != null) {
+        File file = File(pickedFile.path);
+        
+        // 2. Get actual file size
+        int sizeInBytes = await file.length();
+        int sizeInKB = (sizeInBytes / 1024).round();
+
+        // 3. Update State
+        if (mounted) {
+          setState(() {
+            _selectedImage = file;
+            _currentFileSizeKB = sizeInKB;
+            _hasPhoto = true;
+            _isUploading = false;
+          });
+        }
+      } else {
+        // User canceled selection
+        if (mounted) setState(() => _isUploading = false);
+      }
+    } catch (e) {
+      debugPrint("Error picking image: $e");
+      if (mounted) setState(() => _isUploading = false);
     }
   }
 
@@ -42,7 +70,7 @@ class _PhotoUploadPageState extends State<PhotoUploadPage> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       resizeToAvoidBottomInset: false,
-      appBar: _buildAppBar(context), // 👉 UPDATED APP BAR
+      appBar: _buildAppleAppBar(context),
       body: ScreenBackground(
         child: SafeArea(
           child: Padding(
@@ -53,60 +81,117 @@ class _PhotoUploadPageState extends State<PhotoUploadPage> {
                 const SizedBox(height: 20),
                 const Text(
                   "Passport\nPhoto.",
-                  style: TextStyle(fontFamily: 'SF Pro Display', fontSize: 42, fontWeight: FontWeight.w800, color: black, letterSpacing: -2.0, height: 1.0),
+                  style: TextStyle(
+                    fontFamily: 'SF Pro Display',
+                    fontSize: 42,
+                    fontWeight: FontWeight.w800,
+                    color: black,
+                    letterSpacing: -2.0,
+                    height: 1.0,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 const Text(
                   "Upload a clear photo for your digital pass.",
-                  style: TextStyle(fontFamily: 'SF Pro Display', fontSize: 17, fontWeight: FontWeight.w400, color: greyText, height: 1.3),
+                  style: TextStyle(
+                    fontFamily: 'SF Pro Display',
+                    fontSize: 17,
+                    fontWeight: FontWeight.w400,
+                    color: greyText,
+                    height: 1.3,
+                  ),
                 ),
+                
                 const Spacer(flex: 2),
 
+                // --- Preview Frame ---
                 Center(
                   child: GestureDetector(
-                    onTap: _hasPhoto ? null : _handleFileSelection,
+                    onTap: _handleFileSelection, // Allow tapping to change even if photo exists
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 500),
                       curve: Curves.easeInOutBack,
-                      width: 260, height: 320,
+                      width: 260,
+                      height: 320,
                       decoration: BoxDecoration(
-                        color: Colors.white, borderRadius: BorderRadius.circular(40),
-                        border: Border.all(color: _hasPhoto ? (_isSizeTooLarge ? appleRed : appleBlue) : Colors.transparent, width: 3),
-                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 40, offset: const Offset(0, 20))],
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(40),
+                        border: Border.all(
+                          color: _hasPhoto 
+                              ? (_isSizeTooLarge ? appleRed : appleBlue) 
+                              : Colors.transparent,
+                          width: 3,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.06),
+                            blurRadius: 40,
+                            offset: const Offset(0, 20),
+                          )
+                        ],
                       ),
-                      child: ClipRRect(borderRadius: BorderRadius.circular(37), child: _buildPreviewContent()),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(37),
+                        child: _buildPreviewContent(),
+                      ),
                     ),
                   ),
                 ),
+
                 const SizedBox(height: 15),
                 
+                // --- DYNAMIC WARNING TEXT ---
                 Center(
                   child: Column(
                     children: [
                       Text(
-                        _isSizeTooLarge ? "File too large: ${_mockFileSizeKB} KB" : "Standard size: 20 KB to 100 KB",
-                        style: TextStyle(fontFamily: 'SF Pro Display', fontSize: 13, fontWeight: FontWeight.w600, color: _isSizeTooLarge ? appleRed : greyText),
+                        _hasPhoto 
+                            ? (_isSizeTooLarge ? "File too large: $_currentFileSizeKB KB" : "Size OK: $_currentFileSizeKB KB")
+                            : "Standard size: 20 KB to 100 KB",
+                        style: TextStyle(
+                          fontFamily: 'SF Pro Display',
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: (_hasPhoto && _isSizeTooLarge) ? appleRed : (_hasPhoto ? Colors.green : greyText),
+                        ),
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        _isSizeTooLarge ? "Please compress image and re-upload" : "Guideline: Max 300 KB allowed",
-                        style: const TextStyle(fontFamily: 'SF Pro Display', fontSize: 12, color: greyText),
+                        _isSizeTooLarge 
+                            ? "Please compress image below 100 KB" 
+                            : "Guideline: Max 100 KB allowed",
+                        style: const TextStyle(
+                          fontFamily: 'SF Pro Display',
+                          fontSize: 12,
+                          color: greyText,
+                        ),
                       ),
                     ],
                   ),
                 ),
+
                 const Spacer(flex: 3),
 
+                // --- Buttons ---
                 Column(
                   children: [
                     _buildAppleButton(
                       text: _hasPhoto ? "Confirm & Continue" : "Choose from Gallery",
-                      onTap: (_isUploading || (_hasPhoto && _isSizeTooLarge)) ? null : (_hasPhoto ? () => Navigator.push(context, MaterialPageRoute(builder: (context) => const AadhaarUploadPage())) : _handleFileSelection),
+                      // Disable if uploading OR (has photo AND is too large)
+                      onTap: (_isUploading || (_hasPhoto && _isSizeTooLarge)) 
+                          ? null 
+                          : (_hasPhoto 
+                              ? () => Navigator.push(context, MaterialPageRoute(builder: (context) => const AadhaarUploadPage())) 
+                              : _handleFileSelection),
                       isPrimary: true,
                     ),
                     if (_hasPhoto) ...[
                       const SizedBox(height: 12),
-                      _buildAppleButton(text: "Change Photo", onTap: () => setState(() => _hasPhoto = false), isPrimary: false),
+                      _buildAppleButton(
+                        text: "Change Photo",
+                        onTap: _handleFileSelection, // Directly open gallery
+                        isPrimary: false,
+                      ),
                     ],
                   ],
                 ),
@@ -120,24 +205,52 @@ class _PhotoUploadPageState extends State<PhotoUploadPage> {
   }
 
   Widget _buildPreviewContent() {
-    if (_isUploading) return const Center(child: CircularProgressIndicator(color: appleBlue, strokeWidth: 3));
-    if (_hasPhoto) {
+    if (_isUploading) {
+      return const Center(child: CircularProgressIndicator(color: appleBlue, strokeWidth: 3));
+    }
+    if (_hasPhoto && _selectedImage != null) {
       return Stack(
         fit: StackFit.expand,
         children: [
-          Container(color: appleGrey),
-          Center(child: Icon(_isSizeTooLarge ? Icons.warning_amber_rounded : Icons.person_rounded, size: 140, color: _isSizeTooLarge ? appleRed.withOpacity(0.5) : Colors.white)),
+          // 1. The Actual Image
+          Image.file(
+            _selectedImage!,
+            fit: BoxFit.cover,
+          ),
+          
+          // 2. Overlay if Error (Optional, helps readability of error icon)
+          if (_isSizeTooLarge)
+            Container(color: Colors.white.withOpacity(0.7)),
+
+          // 3. Status Icon
+          Center(
+            child: _isSizeTooLarge 
+                ? Icon(Icons.warning_amber_rounded, size: 80, color: appleRed.withOpacity(0.8))
+                : null, // Don't show icon if image is good, show the photo!
+          ),
+
+          // 4. Checkmark / X Badge
           Positioned(
-            bottom: 20, right: 20,
+            bottom: 20,
+            right: 20,
             child: Container(
               padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: _isSizeTooLarge ? appleRed : appleBlue, shape: BoxShape.circle),
-              child: Icon(_isSizeTooLarge ? Icons.close_rounded : Icons.check_rounded, color: Colors.white, size: 24),
+              decoration: BoxDecoration(
+                color: _isSizeTooLarge ? appleRed : appleBlue, 
+                shape: BoxShape.circle,
+                boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 8, offset: Offset(0,4))]
+              ),
+              child: Icon(
+                _isSizeTooLarge ? Icons.close_rounded : Icons.check_rounded, 
+                color: Colors.white, 
+                size: 24
+              ),
             ),
           ),
         ],
       );
     }
+    // Default State
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -150,41 +263,44 @@ class _PhotoUploadPageState extends State<PhotoUploadPage> {
 
   Widget _buildAppleButton({required String text, required VoidCallback? onTap, required bool isPrimary}) {
     return SizedBox(
-      width: double.infinity, height: 60,
+      width: double.infinity,
+      height: 60,
       child: TextButton(
-        style: TextButton.styleFrom(backgroundColor: (onTap == null) ? Colors.grey.shade300 : (isPrimary ? black : appleGrey), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18))),
+        style: TextButton.styleFrom(
+          backgroundColor: (onTap == null) ? Colors.grey.shade300 : (isPrimary ? black : appleGrey),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        ),
         onPressed: onTap,
-        child: Text(text, style: TextStyle(fontFamily: 'SF Pro Display', color: (onTap == null) ? Colors.grey : (isPrimary ? Colors.white : black), fontSize: 18, fontWeight: FontWeight.w600)),
+        child: Text(
+          text,
+          style: TextStyle(
+            fontFamily: 'SF Pro Display',
+            color: (onTap == null) ? Colors.grey : (isPrimary ? Colors.white : black),
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ),
     );
   }
 
-  // 👉 NEW EXACT APPLE PILL BACK BUTTON
-  PreferredSizeWidget _buildAppBar(BuildContext context) {
+  PreferredSizeWidget _buildAppleAppBar(BuildContext context) {
     return AppBar(
       backgroundColor: Colors.transparent,
       elevation: 0,
-      leadingWidth: 115,
+      leadingWidth: 110,
       leading: Padding(
-        padding: const EdgeInsets.only(left: 24.0, top: 10.0, bottom: 10.0),
-        child: GestureDetector(
-          onTap: () {
-            if (Navigator.canPop(context)) Navigator.pop(context);
-          },
-          child: Container(
-            decoration: BoxDecoration(
-              color: const Color(0xFFEFEFEF), 
-              borderRadius: BorderRadius.circular(30),
-            ),
-            alignment: Alignment.center,
-            child: const Text(
-              "< back",
-              style: TextStyle(
-                fontFamily: 'SF Pro Display',
-                color: Color(0xFF8A8A8E), 
-                fontSize: 17,
-                fontWeight: FontWeight.w500,
-                letterSpacing: -0.5,
+        padding: const EdgeInsets.only(left: 20, top: 12, bottom: 12),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: GestureDetector(
+              onTap: () => Navigator.pop(context),
+              child: Container(
+                alignment: Alignment.center,
+                decoration: BoxDecoration(color: Colors.white.withOpacity(0.7), border: Border.all(color: Colors.white.withOpacity(0.3)), borderRadius: BorderRadius.circular(12)),
+                child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.arrow_back_ios_new, size: 14, color: black), SizedBox(width: 6), Text("Back", style: TextStyle(color: black, fontWeight: FontWeight.w600, fontSize: 15))]),
               ),
             ),
           ),
